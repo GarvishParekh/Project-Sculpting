@@ -8,6 +8,7 @@ public class ApplyForce : MonoBehaviour
 
     [Header ("<b>Components")]
     public AudioSource audioSoruce;
+    public GameObject dustParticles;
     public AudioClip[] stoneFalling;
     public Transform forceOrigin; // The point to push away from
 
@@ -47,5 +48,7 @@ public class ApplyForce : MonoBehaviour
 
         index = Random.Range(0, stoneFalling.Length);
         audioSoruce.PlayOneShot(stoneFalling[index]);
+
+        Instantiate(dustParticles, transform.position, Quaternion.identity, transform);
     }
 }
