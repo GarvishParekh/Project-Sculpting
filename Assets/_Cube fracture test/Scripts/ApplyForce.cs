@@ -1,7 +1,6 @@
-using System.Collections.Generic;
 using System.Linq;
-using UnityEditor;
 using UnityEngine;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(Rigidbody))]
 public class ApplyForce : MonoBehaviour
@@ -13,7 +12,7 @@ public class ApplyForce : MonoBehaviour
     public GameObject dustParticles;
     public AudioClip[] stoneFalling;
     public Transform forceOrigin; 
-    public List<Collider> nearObjectList = new List<Collider>();
+    public List<ApplyForce> nearObjectList = new List<ApplyForce>();
 
     [Header ("<b>Values")]
     public float forceMagnitude = 10f;
@@ -21,20 +20,48 @@ public class ApplyForce : MonoBehaviour
 
     int index = 0;
     float checkRadius = 0;
+    bool alreadyFallen = false;
 
     void Start()
     {
-        InitComponents();
+        InitializeComponents();
         PhysicsStatus(false);
         SetRadius();
         GetNearObjects();
     }
 
-    private void OnMouseDown()
+    private void InitializeComponents()
     {
-        ApplyForceOnStone();
+        stoneRb = GetComponent<Rigidbody>();
     }
 
+    // ------------------------------ listners ------------------------------
+    private void OnEnable()
+    {
+        ActionHandler.RockPartFall += OnRockFalled;
+    }
+
+    private void OnDisable()
+    {
+        ActionHandler.RockPartFall -= OnRockFalled;
+    }
+
+    public void OnRockFalled(ApplyForce fallenRock)
+    {
+        if (alreadyFallen) return;
+
+        if (nearObjectList.Contains(fallenRock))
+        {
+            nearObjectList.Remove(fallenRock);
+        }
+        if (nearObjectList.Count == 1) ApplyForceOnStone();
+    }
+
+    // ------------------------------ inputs ------------------------------
+    private void OnMouseDown() => ApplyForceOnStone();
+
+
+    // ------------------------------ calculations ------------------------------
     private void SetRadius()
     {
         // Auto-set check radius from mesh size
@@ -42,31 +69,8 @@ public class ApplyForce : MonoBehaviour
         if (meshFilter != null)
         {
             float size = meshFilter.mesh.bounds.size.magnitude;
-            checkRadius = size * 2f;
+            checkRadius = size * 5f;
         }
-    }
-
-    public void ApplyForceOnStone()
-    {
-        if (forceOrigin == null || stoneRb == null) return;
-
-        // change settings of the stone
-        PhysicsStatus(true);
-        transform.SetParent(null);
-
-        // change layer of the object
-        //gameObject.tag = "FallingStone";
-
-        // Direction from the point to this object
-        Vector3 direction = (transform.position - forceOrigin.position).normalized;
-
-        // ApplyForceOnStone the force
-        stoneRb.AddForce(direction * forceMagnitude, ForceMode.Impulse);
-
-        index = Random.Range(0, stoneFalling.Length);
-        audioSoruce.PlayOneShot(stoneFalling[index]);
-
-        Instantiate(dustParticles, transform.position, Quaternion.identity, transform);
     }
 
     private void PhysicsStatus(bool check)
@@ -83,31 +87,48 @@ public class ApplyForce : MonoBehaviour
         }
     }
 
-    private void InitComponents()
-    {
-        stoneRb = GetComponent<Rigidbody>();
-    }
 
-    bool isFalled = false;
+
     private void GetNearObjects()
     {
-        if (isFalled) return;
-        Collider[] overlaps = Physics.OverlapSphere(transform.position, checkRadius, stoneLayer);
+        Renderer rend = GetComponent<Renderer>();
+        Bounds bounds = rend.bounds;
 
-        nearObjectList = overlaps.ToList();
-    }
+        Vector3 center = bounds.center;
+        Vector3 halfExtents = bounds.extents * 0.5f; // This is bounds.size / 2
 
-    public bool GetFallenSatus()
-    {
-        return isFalled;
-    }
+        Collider[] boxOverlaps = Physics.OverlapBox(center, halfExtents, Quaternion.identity, stoneLayer);
+        //Collider[] overlaps = Physics.OverlapSphere(transform.position, checkRadius, stoneLayer);
 
-    bool allIntact = false;
-    private void Update()
-    {
-        foreach (var item in nearObjectList)
+        foreach (var item in boxOverlaps)
         {
-            allIntact = item.GetComponent<ApplyForce>().GetFallenSatus();
+            ApplyForce applyForce = item.GetComponent<ApplyForce>();
+            nearObjectList.Add(applyForce);
         }
+
+    }
+
+    // ------------------------------ main logic ------------------------------
+    public void ApplyForceOnStone()
+    {
+        if (forceOrigin == null || stoneRb == null) return;
+        alreadyFallen = true;
+
+        // change settings of the stone
+        PhysicsStatus(true);
+        transform.SetParent(null);
+
+
+        // get direction and apply force
+        Vector3 direction = (transform.position - forceOrigin.position).normalized;
+        stoneRb.AddForce(direction * forceMagnitude, ForceMode.Impulse);
+
+        // get random audio and play the sound
+        index = Random.Range(0, stoneFalling.Length);
+        audioSoruce.PlayOneShot(stoneFalling[index]);
+
+        // instentiate smoke particle and call the action
+        Instantiate(dustParticles, transform.position, Quaternion.identity, transform);
+        ActionHandler.RockPartFall?.Invoke(this);
     }
 }
