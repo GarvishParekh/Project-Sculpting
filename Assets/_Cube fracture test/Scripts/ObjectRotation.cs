@@ -60,7 +60,7 @@ public class ObjectRotation : MonoBehaviour
         float rotationX = swipeDelta.y * rotationSpeed;
 
         transform.Rotate(Vector3.up, rotationY, Space.World);
-        transform.Rotate(Vector3.right, rotationX, Space.World);
+        //transform.Rotate(Vector3.right, rotationX, Space.World);
     }
 
     public void _ResetScene()
